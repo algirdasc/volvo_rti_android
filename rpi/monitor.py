@@ -43,7 +43,7 @@ def main() -> None:
     while True:
         pass
 
-def serial_monitor(ser: serial) -> None:
+def serial_monitor() -> None:
     logging.info('Starting serial monitor thread')
     last_display_state_ts = time.time()
 
