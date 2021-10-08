@@ -51,9 +51,10 @@ def serial_monitor() -> None:
 
     while True:
         try:
-            if ser is None:
-                logging.info('Opening serial')
+            if ser is None:                
+                logging.debug('Opening serial')
                 ser = serial.Serial(port='/dev/serial0', baudrate=115200, timeout=1)
+                logging.info('Opened serial')
 
             line = ser.readline().strip()
 
@@ -85,7 +86,7 @@ def serial_monitor() -> None:
                 serial_write(ser, 'DISPLAY_UP' if DISPLAY_ACTIVE is True else 'DISPLAY_DOWN')
                 last_display_state_ts = time.time()
         except Exception as e:
-            loggin.error('SERIAL READ: {0}'.format(e))
+            logging.error('Exception while reading serial: {0}'.format(e))
             time.sleep(10)
 
     logging.info('Closing serial')
@@ -99,7 +100,7 @@ def serial_write(ser: serial, data: str) -> None:
         ser.write(b'\n')
         ser.flush()
     except Exception as e:
-        logging.error('SERIAL: {0}'.format(e))
+        logging.error('Exception while writing to serial: {0}'.format(e))
 
 
 def usb_monitor() -> None:
