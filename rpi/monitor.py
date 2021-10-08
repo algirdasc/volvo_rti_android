@@ -38,14 +38,10 @@ DISPLAY_TIMEOUT = 3
 
 def main() -> None:
     _thread.start_new_thread(usb_monitor, ())
-    _thread.start_new_thread(serial_monitor, (ser,))
+    _thread.start_new_thread(serial_monitor, (,))
 
     while True:
         pass
-
-    logging.info('Closing serial')
-    ser.close()
-
 
 def serial_monitor(ser: serial) -> None:
     logging.info('Starting serial monitor thread')
@@ -91,6 +87,9 @@ def serial_monitor(ser: serial) -> None:
         except Exception as e:
             loggin.error('SERIAL READ: {0}'.format(e))
             time.sleep(10)
+
+    logging.info('Closing serial')
+    ser.close()
 
 
 def serial_write(ser: serial, data: str) -> None:
