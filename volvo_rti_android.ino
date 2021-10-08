@@ -60,6 +60,9 @@ enum RTI_DISPLAY_MODE_NAME { RTI_RGB, RTI_PAL, RTI_NTSC, RTI_OFF };
 const char RTI_DISPLAY_MODES[] = { 0x40, 0x45, 0x4C, 0x46 };
 const char RTI_BRIGHTNESS_LEVELS[] = { 0x20, 0x61, 0x62, 0x23, 0x64, 0x25, 0x26, 0x67, 0x68, 0x29, 0x2A, 0x2C, 0x6B, 0x6D, 0x6E, 0x2F };
 
+enum RPI_STATUS_NAME { RPI_ON, RPI_SHUTING_DOWN, RPI_OFF };
+int RPI_STATUS = RPI_ON;
+
 unsigned long currentMillis, lastSWMFrameAt, lastRtiWriteAt, lastSerialAt, piShutdownAt;
 
 void setup()
@@ -85,7 +88,6 @@ void setup()
   digitalWrite(LED_BUILTIN, LOW);
 
   debugln("Setup complete");
- 
 }
 
 void loop()
@@ -216,6 +218,7 @@ void parseSerialCommand(char* input)
   char *argument = strtok(NULL, "=");
   
   if (!argument) {
+    RPI_STATUS = RPI_ON;
     if (strcmp(input, "DISPLAY_UP") == 0) {
       RTI_ON = true;
       Serial.println("CMD_DISPLAY_UP");
@@ -240,7 +243,7 @@ void parseSerialCommand(char* input)
   }
 }
 
-int rtiStep = 0;
+int rtiStep = RPI_ON;
 void rtiLoop()
 {
   if (since(lastRtiWriteAt) < RTI_INTERVAL) {
@@ -270,53 +273,50 @@ void rtiWrite(char byte)
   delay(RTI_INTERVAL);
 }
 
-int rpiStep = -1;
 void powerOffPi()
-{  
-  if (digitalRead(RPI_RELAY_PIN) == LOW) {
-    return;
-  }
-  
-  if (rpiStep == -1) {
+{   
+  if (RPI_STATUS == RPI_ON) {
     Serial.println("EVENT_SHUTDOWN");
     piShutdownAt = currentMillis;
-    rpiStep++;
+    rpiStatus = 0;
   }
 
-  if (rpiStep == 0) {
+  if (RPI_STATUS == RPI_SHUTING_DOWN) {
     long sincePiShutdown = since(piShutdownAt); 
     if (sincePiShutdown > 10000) {
       RTI_ON = false;
     }
     
     if (sincePiShutdown > 20000) {
-      rpiStep++;
-    }
-  }
-
-  if (rpiStep == 1) {
-    if (digitalRead(RPI_RELAY_PIN) == HIGH) {
-      digitalWrite(RPI_RELAY_PIN, LOW);      
       Serial.println("EVENT_PI_OFF");
-      delay(1000); // just to make sure pi is completely off
-      rpiStep = -1;
+      RPI_STATUS = RPI_OFF;
     }
   }
 }
 
 void powerOnPi()
 { 
-  if (rpiStep > -1) {
+  if (RPI_STAUS == RPI_ON) {
+    return;
+  }
+
+  if (RPI_STATUS == RPI_SHUTING_DOWN) {
     // Continue shutdown sequence
     powerOffPi(); 
     return;
   }
-  
-  if (digitalRead(RPI_RELAY_PIN) == LOW) {
-    digitalWrite(RPI_RELAY_PIN, HIGH);
-    Serial.println("EVENT_PI_ON");
-    rpiStep = -1;
+
+  if (RPI_STATUS == RPI_OFF) {
+    clickPiRelay();
+    RPI_STATUS = RPI_ON;
   }
+}
+
+void clickPiRelay()
+{
+  digitalWrite(RPI_RELAY_PIN, HIGH);
+  delay(1000);
+  digitalWrite(RPI_RELAY_PIN, LOW);
 }
 
 long since(long timestamp) {
