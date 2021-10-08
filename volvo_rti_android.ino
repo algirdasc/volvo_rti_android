@@ -1,4 +1,3 @@
-  #include <LowPower.h>
 #include <SoftwareSerial.h>
 #include "src/SendOnlySoftwareSerial.h"
 #include "src/lin_frame.h"
