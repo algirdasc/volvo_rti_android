@@ -86,8 +86,6 @@ void setup()
   // LED off
   digitalWrite(LED_BUILTIN, LOW);
 
-  clickPiRelay(); // Test
-
   debugln("Setup complete");
 }
 
@@ -317,7 +315,7 @@ void powerOnPi()
 void clickPiRelay()
 {
   digitalWrite(RPI_RELAY_PIN, HIGH);
-  delay(1000);
+  delay(500);
   digitalWrite(RPI_RELAY_PIN, LOW);
 }
 

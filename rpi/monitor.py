@@ -37,9 +37,6 @@ DISPLAY_TIMEOUT = 3
 
 
 def main() -> None:
-    logging.info('Opening serial')
-    ser = serial.Serial(port='/dev/serial0', baudrate=115200, timeout=1)
-
     _thread.start_new_thread(usb_monitor, ())
     _thread.start_new_thread(serial_monitor, (ser,))
 
@@ -54,36 +51,46 @@ def serial_monitor(ser: serial) -> None:
     logging.info('Starting serial monitor thread')
     last_display_state_ts = time.time()
 
+    ser = None
+
     while True:
-        line = ser.readline().strip()
+        try:
+            if ser is None:
+                logging.info('Opening serial')
+                ser = serial.Serial(port='/dev/serial0', baudrate=115200, timeout=1)
 
-        if line != b'':
-            logging.debug('Serial received: {0}'.format(line.decode('utf-8')))
+            line = ser.readline().strip()
 
-        if line == b'EVENT_SHUTDOWN':
-            subprocess.check_call('sudo shutdown -h now', shell=True)
+            if line != b'':
+                logging.debug('Serial received: {0}'.format(line.decode('utf-8')))
 
-        if line == b'EVENT_KEY_UP':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Up', shell=True)
+            if line == b'EVENT_SHUTDOWN':
+                subprocess.check_call('sudo shutdown -h now', shell=True)
 
-        if line == b'EVENT_KEY_DOWN':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Down', shell=True)
+            if line == b'EVENT_KEY_UP':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Up', shell=True)
 
-        if line == b'EVENT_KEY_LEFT':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ 1', shell=True)
+            if line == b'EVENT_KEY_DOWN':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Down', shell=True)
 
-        if line == b'EVENT_KEY_RIGHT':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ 2', shell=True)
+            if line == b'EVENT_KEY_LEFT':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ 1', shell=True)
 
-        if line == b'EVENT_KEY_ENTER':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Return', shell=True)
+            if line == b'EVENT_KEY_RIGHT':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ 2', shell=True)
 
-        if line == b'EVENT_KEY_BACK':
-            subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Escape', shell=True)
+            if line == b'EVENT_KEY_ENTER':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Return', shell=True)
 
-        if time.time() - last_display_state_ts >= DISPLAY_TIMEOUT:
-            serial_write(ser, 'DISPLAY_UP' if DISPLAY_ACTIVE is True else 'DISPLAY_DOWN')
-            last_display_state_ts = time.time()
+            if line == b'EVENT_KEY_BACK':
+                subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Escape', shell=True)
+
+            if time.time() - last_display_state_ts >= DISPLAY_TIMEOUT:
+                serial_write(ser, 'DISPLAY_UP' if DISPLAY_ACTIVE is True else 'DISPLAY_DOWN')
+                last_display_state_ts = time.time()
+        except Exception as e:
+            loggin.error('SERIAL READ: {0}'.format(e))
+            time.sleep(10)
 
 
 def serial_write(ser: serial, data: str) -> None:
