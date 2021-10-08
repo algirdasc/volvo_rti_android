@@ -86,6 +86,8 @@ void setup()
   // LED off
   digitalWrite(LED_BUILTIN, LOW);
 
+  clickPiRelay(); // Test
+
   debugln("Setup complete");
 }
 
