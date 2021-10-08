@@ -1,4 +1,4 @@
-#include <LowPower.h>
+  #include <LowPower.h>
 #include <SoftwareSerial.h>
 #include "src/SendOnlySoftwareSerial.h"
 #include "src/lin_frame.h"
@@ -60,7 +60,7 @@ enum RTI_DISPLAY_MODE_NAME { RTI_RGB, RTI_PAL, RTI_NTSC, RTI_OFF };
 const char RTI_DISPLAY_MODES[] = { 0x40, 0x45, 0x4C, 0x46 };
 const char RTI_BRIGHTNESS_LEVELS[] = { 0x20, 0x61, 0x62, 0x23, 0x64, 0x25, 0x26, 0x67, 0x68, 0x29, 0x2A, 0x2C, 0x6B, 0x6D, 0x6E, 0x2F };
 
-enum RPI_STATUS_NAME { RPI_ON, RPI_SHUTING_DOWN, RPI_OFF };
+enum RPI_STATUS_NAME { RPI_ON, RPI_SHUTTING_DOWN, RPI_OFF };
 int RPI_STATUS = RPI_ON;
 
 unsigned long currentMillis, lastSWMFrameAt, lastRtiWriteAt, lastSerialAt, piShutdownAt;
@@ -209,6 +209,8 @@ void serialLoop()
     parseSerialCommand(input);
 
     lastSerialAt = currentMillis;
+
+    RPI_STATUS = RPI_ON;
   }
 }
 
@@ -217,8 +219,7 @@ void parseSerialCommand(char* input)
   char *command = strtok(input, "=");
   char *argument = strtok(NULL, "=");
   
-  if (!argument) {
-    RPI_STATUS = RPI_ON;
+  if (!argument) {    
     if (strcmp(input, "DISPLAY_UP") == 0) {
       RTI_ON = true;
       Serial.println("CMD_DISPLAY_UP");
@@ -243,7 +244,7 @@ void parseSerialCommand(char* input)
   }
 }
 
-int rtiStep = RPI_ON;
+int rtiStep = 0;
 void rtiLoop()
 {
   if (since(lastRtiWriteAt) < RTI_INTERVAL) {
@@ -278,13 +279,13 @@ void powerOffPi()
   if (RPI_STATUS == RPI_ON) {
     Serial.println("EVENT_SHUTDOWN");
     piShutdownAt = currentMillis;
-    rpiStatus = 0;
+    RPI_STATUS = RPI_SHUTTING_DOWN;
   }
 
-  if (RPI_STATUS == RPI_SHUTING_DOWN) {
+  if (RPI_STATUS == RPI_SHUTTING_DOWN) {
     long sincePiShutdown = since(piShutdownAt); 
     if (sincePiShutdown > 10000) {
-      RTI_ON = false;
+      RTI_ON = false; // close display
     }
     
     if (sincePiShutdown > 20000) {
@@ -296,11 +297,11 @@ void powerOffPi()
 
 void powerOnPi()
 { 
-  if (RPI_STAUS == RPI_ON) {
+  if (RPI_STATUS == RPI_ON) {
     return;
   }
 
-  if (RPI_STATUS == RPI_SHUTING_DOWN) {
+  if (RPI_STATUS == RPI_SHUTTING_DOWN) {
     // Continue shutdown sequence
     powerOffPi(); 
     return;
