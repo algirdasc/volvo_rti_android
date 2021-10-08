@@ -1,3 +1,4 @@
+import os
 import serial
 import _thread
 import logging
@@ -51,6 +52,16 @@ def serial_monitor() -> None:
 
     while True:
         try:
+            if os.path.exists('/home/pi/update.lock'):
+                logging.debug('Update is in progress')
+                if ser is not None:
+                    logging.debug('Closing serial')
+                    ser.close()
+                    ser = None
+                logging.debug('Waiting 30 seconds')
+                time.sleep(30)
+                continue
+
             if ser is None:                
                 logging.debug('Opening serial')
                 ser = serial.Serial(port='/dev/serial0', baudrate=115200, timeout=1)
@@ -86,11 +97,13 @@ def serial_monitor() -> None:
                 serial_write(ser, 'DISPLAY_UP' if DISPLAY_ACTIVE is True else 'DISPLAY_DOWN')
                 last_display_state_ts = time.time()
         except Exception as e:
+            ser = None
             logging.error('Exception while reading serial: {0}'.format(e))
             time.sleep(10)
 
     logging.info('Closing serial')
     ser.close()
+    ser = None
 
 
 def serial_write(ser: serial, data: str) -> None:
