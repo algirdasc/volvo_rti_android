@@ -38,7 +38,7 @@ DISPLAY_TIMEOUT = 3
 
 def main() -> None:
     _thread.start_new_thread(usb_monitor, ())
-    _thread.start_new_thread(serial_monitor, (,))
+    _thread.start_new_thread(serial_monitor, ())
 
     while True:
         pass
