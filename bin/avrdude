@@ -1,0 +1,2 @@
+#!/bin/sh
+sudo strace -o "|avrdude-gpio-autoreset" -eioctl /usr/bin/avrdude-original $@
