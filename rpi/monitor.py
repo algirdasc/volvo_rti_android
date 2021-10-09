@@ -51,7 +51,7 @@ def serial_monitor() -> None:
             if line != b'':
                 logging.debug('Serial received: {0}'.format(line.decode('utf-8')))
 
-            if line == b'EVENT_SHUTDOWN':
+            if line == b'EVENT_RPI_SHUTDOWN':
                 subprocess.check_call('sudo shutdown -h now', shell=True)
 
             if line == b'EVENT_KEY_UP':
