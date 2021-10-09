@@ -101,10 +101,6 @@ def serial_monitor() -> None:
             logging.error('Exception while reading serial: {0}'.format(e))
             time.sleep(10)
 
-    logging.info('Closing serial')
-    ser.close()
-    ser = None
-
 
 def serial_write(ser: serial, data: str) -> None:
     try:

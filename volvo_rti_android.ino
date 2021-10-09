@@ -81,6 +81,8 @@ void setup()
 
   // RPi relay
   pinMode(RPI_RELAY_PIN, OUTPUT);
+  digitalWrite(RPI_RELAY_PIN, HIGH);
+  delay(3000);
   digitalWrite(RPI_RELAY_PIN, LOW);
 
   // LED off
@@ -276,7 +278,7 @@ void rtiWrite(char byte)
 void powerOffPi()
 {   
   if (RPI_STATUS == RPI_ON) {
-    Serial.println("EVENT_SHUTDOWN");
+    // Serial.println("EVENT_SHUTDOWN");
     piShutdownAt = currentMillis;
     RPI_STATUS = RPI_SHUTTING_DOWN;
   }
