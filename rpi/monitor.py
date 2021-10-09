@@ -2,7 +2,6 @@ import os
 import serial
 import _thread
 import logging
-import pyudev
 import subprocess
 import time
 
@@ -13,27 +12,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-
-def scan_for_android(devices: list, action: str = 'found') -> bool:
-    for device in devices:
-        model = device.get('ID_MODEL_FROM_DATABASE')
-        id_vendor = device.get('ID_VENDOR')
-        id_model = device.get('ID_MODEL')
-        id_serial = device.get('ID_SERIAL')
-        if id_vendor is None:
-            id_vendor = device.get('ID_VENDOR_FROM_DATABASE')
-            id_model = 'Unknown'
-            id_serial = 'Unknown'
-        if model is not None and 'Android' in model:
-            logging.info('{0} {1} {2} ({3})'.format(action.title(), id_vendor, id_model, id_serial))
-            return True
-
-    return False
-
-
-logging.info('Scanning already plugged in USB devices')
-context = pyudev.Context()
-DISPLAY_ACTIVE = scan_for_android(context.list_devices(ID_BUS='usb'))
+DISPLAY_ACTIVE = False
 DISPLAY_TIMEOUT = 3
 
 
@@ -114,18 +93,25 @@ def serial_write(ser: serial, data: str) -> None:
 
 def usb_monitor() -> None:
     global DISPLAY_ACTIVE
-    logging.info('Starting USB monitor thread')
-    monitor = pyudev.Monitor.from_netlink(context)
-    monitor.filter_by(subsystem='usb')
-    for action, device in monitor:
-        model = device.get('ID_MODEL_FROM_DATABASE')
-        if model is None:
-            model = device.get('PRODUCT')
-        logging.debug('USB {0} {1}'.format(action.title(), model))
-        if action == 'add' or action == 'remove':
-            result = scan_for_android([device], action)
-            if result is True:
-                DISPLAY_ACTIVE = action == 'add'
+    logging.info('Starting USB monitor thread')    
+
+    while True:
+        try:
+            android_found = False
+            output = subprocess.check_output('lsusb', shell=True).decode('utf-8')
+            for line in output.split('\n'):
+                if not line:
+                    continue
+                if 'android' in line.lower():
+                    if DISPLAY_ACTIVE is False:
+                        logging.info('Found android device: {0}'.format(line))
+                    android_found = True
+                    break                    
+            DISPLAY_ACTIVE = android_found
+        except Exception as e:
+            logging.error('Exception while scanning USB: {0}'.format(e))
+        finally:
+            time.sleep(3)
 
 
 if __name__ == '__main__':

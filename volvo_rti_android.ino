@@ -81,14 +81,10 @@ void setup()
 
   // RPi relay
   pinMode(RPI_RELAY_PIN, OUTPUT);
-  digitalWrite(RPI_RELAY_PIN, HIGH);
-  delay(3000);
   digitalWrite(RPI_RELAY_PIN, LOW);
 
   // LED off
   digitalWrite(LED_BUILTIN, LOW);
-
-  debugln("Setup complete");
 }
 
 void loop()
@@ -227,11 +223,8 @@ void parseSerialCommand(char* input)
     } else if (strcmp(input, "DISPLAY_DOWN") == 0) {
       RTI_ON = false;
       Serial.println("CMD_DISPLAY_DOWN");
-    } else if (strcmp(input, "RPI_OFF") == 0) {
-      digitalWrite(RPI_RELAY_PIN, LOW);
-      Serial.println("CMD_RPI_OFF");
     } else if (strcmp(input, "RPI_ON") == 0) {
-      digitalWrite(RPI_RELAY_PIN, HIGH);
+      clickPiRelay();
       Serial.println("CMD_RPI_ON");
     }
   } else {
@@ -276,22 +269,22 @@ void rtiWrite(char byte)
 }
 
 void powerOffPi()
-{   
+{  
+  if (RPI_STATUS == RPI_OFF) {
+    RTI_ON = false;
+    return;
+  }
+
   if (RPI_STATUS == RPI_ON) {
-    // Serial.println("EVENT_SHUTDOWN");
+    Serial.println("EVENT_RPI_SHUTDOWN");    
     piShutdownAt = currentMillis;
     RPI_STATUS = RPI_SHUTTING_DOWN;
   }
 
-  if (RPI_STATUS == RPI_SHUTTING_DOWN) {
-    long sincePiShutdown = since(piShutdownAt); 
-    if (sincePiShutdown > 10000) {
-      RTI_ON = false; // close display
-    }
-    
-    if (sincePiShutdown > 20000) {
-      Serial.println("EVENT_PI_OFF");
-      RPI_STATUS = RPI_OFF;
+  if (RPI_STATUS == RPI_SHUTTING_DOWN) {    
+    if (since(piShutdownAt) > 30000) {
+      Serial.println("EVENT_RPI_OFF");
+      RPI_STATUS = RPI_OFF;      
     }
   }
 }
@@ -310,6 +303,7 @@ void powerOnPi()
 
   if (RPI_STATUS == RPI_OFF) {
     clickPiRelay();
+    Serial.println("EVENT_RPI_ON");
     RPI_STATUS = RPI_ON;
   }
 }
