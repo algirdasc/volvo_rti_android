@@ -52,7 +52,9 @@ def serial_monitor() -> None:
                 logging.debug('Serial received: {0}'.format(line.decode('utf-8')))
 
             if line == b'EVENT_RPI_SHUTDOWN':
+                serial_write(ser, 'DISPLAY_DOWN')
                 subprocess.check_call('sudo shutdown -h now', shell=True)
+                exit()
 
             if line == b'EVENT_KEY_UP':
                 subprocess.check_call('export DISPLAY=:0.0 && xdotool search --class autoapp key --window %@ Up', shell=True)
