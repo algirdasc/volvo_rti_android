@@ -55,7 +55,6 @@ LinFrame linFrame;
 #define BUTTON_NEXT     0x10
 #define BUTTON_PREV     0x2
 
-bool RPI_POWER_HANDLED = false;
 bool RTI_ON = false;
 int RTI_BRIGHTNESS = 10;
 enum RTI_DISPLAY_MODE_NAME { RTI_RGB, RTI_PAL, RTI_NTSC, RTI_OFF };
@@ -89,6 +88,9 @@ void setup()
   digitalWrite(LED_BUILTIN, LOW);
 }
 
+bool IsSWMTimedOut, LastIsSWMTimedOut = false;
+bool IsRPISerialTimedOut, LastIsRPISerialTimedOut = false;
+
 void loop()
 {
   currentMillis = millis();
@@ -101,29 +103,28 @@ void loop()
 
   // Send data to RTI Volvo Display
   rtiLoop();
-  
-  // Check if we need to sleep
-  if (RPI_POWER_HANDLED == false) {
-    if (since(lastSWMFrameAt) > SWM_TIMEOUT) {                
-      powerOffPi();    
+    
+  IsSWMTimedOut = since(lastSWMFrameAt) > SWM_TIMEOUT;
+  IsRPISerialTimedOut = since(lastSerialAt) > RPI_SERIAL_TIMEOUT;
+
+  if (LastIsSWMTimedOut != IsSWMTimedOut) {
+    if (IsSWMTimedOut == true) {
+      powerOffPi();
     } else {
-      powerOnPi();     
+      powerOnPi();
     }
-    RPI_POWER_HANDLED == true;
   }
 
-  // Check if RPI is alive
-  if (since(lastSerialAt) > RPI_SERIAL_TIMEOUT) {
-    if (RPI_STATUS == RPI_ON) {
+  if (LastIsRPISerialTimedOut != IsRPISerialTimedOut) {
+    if (IsRPISerialTimedOut == true) {
       RPI_STATUS = RPI_OFF;
-      RPI_POWER_HANDLED == false      
-    }    
-  } else {
-    if (RPI_STATUS == RPI_OFF) {
+    } else {
       RPI_STATUS = RPI_ON;
-      RPI_POWER_HANDLED == false
-    }    
+    }
   }
+
+  LastIsSWMTimedOut = IsSWMTimedOut;
+  LastIsRPISerialTimedOut = IsRPISerialTimedOut;
 }
 
 void linbusLoop()
