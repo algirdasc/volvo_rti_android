@@ -5,8 +5,9 @@
 #define SERIAL_BAUD   115200
 
 #define RPI_RELAY_PIN 5
-#define RPI_SERIAL_TIMEOUT 10000 // 10 seconds
-#define RPI_TIMEOUT   600000 // 10 minutes
+#define RPI_SERIAL_TIMEOUT 5000 // 10 seconds
+
+#define SWM_TIMEOUT   600000 // 10 minutes
 
 #define LIN_RX_PIN    6
 #define LIN_TX_PIN    9
@@ -54,12 +55,12 @@ LinFrame linFrame;
 #define BUTTON_NEXT     0x10
 #define BUTTON_PREV     0x2
 
+bool RPI_POWER_HANDLED = false;
 bool RTI_ON = false;
 int RTI_BRIGHTNESS = 10;
 enum RTI_DISPLAY_MODE_NAME { RTI_RGB, RTI_PAL, RTI_NTSC, RTI_OFF };
 const char RTI_DISPLAY_MODES[] = { 0x40, 0x45, 0x4C, 0x46 };
 const char RTI_BRIGHTNESS_LEVELS[] = { 0x20, 0x61, 0x62, 0x23, 0x64, 0x25, 0x26, 0x67, 0x68, 0x29, 0x2A, 0x2C, 0x6B, 0x6D, 0x6E, 0x2F };
-
 enum RPI_STATUS_NAME { RPI_ON, RPI_SHUTTING_DOWN, RPI_OFF };
 int RPI_STATUS = RPI_ON;
 
@@ -101,18 +102,27 @@ void loop()
   // Send data to RTI Volvo Display
   rtiLoop();
   
-  // Check if RPI is alive
-  if (since(lastSerialAt) > RPI_SERIAL_TIMEOUT) {
-    RPI_STATUS = RPI_OFF;
-  } else {
-    RPI_STATUS = RPI_ON;
+  // Check if we need to sleep
+  if (RPI_POWER_HANDLED == false) {
+    if (since(lastSWMFrameAt) > SWM_TIMEOUT) {                
+      powerOffPi();    
+    } else {
+      powerOnPi();     
+    }
+    RPI_POWER_HANDLED == true;
   }
 
-  // Check if we need to sleep
-  if (since(lastSWMFrameAt) > RPI_TIMEOUT) {        
-    powerOffPi();
+  // Check if RPI is alive
+  if (since(lastSerialAt) > RPI_SERIAL_TIMEOUT) {
+    if (RPI_STATUS == RPI_ON) {
+      RPI_STATUS = RPI_OFF;
+      RPI_POWER_HANDLED == false      
+    }    
   } else {
-    powerOnPi(); 
+    if (RPI_STATUS == RPI_OFF) {
+      RPI_STATUS = RPI_ON;
+      RPI_POWER_HANDLED == false
+    }    
   }
 }
 
@@ -308,7 +318,7 @@ void clickPiRelay()
 {
   digitalWrite(RPI_RELAY_PIN, HIGH);
   delay(500);
-  digitalWrite(RPI_RELAY_PIN, LOW);
+  digitalWrite(RPI_RELAY_PIN, LOW);    
 }
 
 long since(long timestamp) {
