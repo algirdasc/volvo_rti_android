@@ -196,13 +196,13 @@ void handleButton()
   switch (button) {
     case BUTTON_ENTER:
       Serial.println("EVENT_KEY_ENTER");
-      if (RPI_STATUS == RPI_OFF && RTI_ON = false) {
+      if (RPI_STATUS == RPI_OFF && RTI_ON == false) {
         RTI_ON = true;
       }
       break;
     case BUTTON_BACK:
       Serial.println("EVENT_KEY_BACK");
-      if (RPI_STATUS == RPI_OFF && RTI_ON = true) {
+      if (RPI_STATUS == RPI_OFF && RTI_ON == true) {
         RTI_ON = false;
       }
       break;
