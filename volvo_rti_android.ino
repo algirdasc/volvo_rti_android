@@ -5,6 +5,7 @@
 #define SERIAL_BAUD   115200
 
 #define RPI_RELAY_PIN 5
+#define RPI_SERIAL_TIMEOUT 10000 // 10 seconds
 #define RPI_TIMEOUT   600000 // 10 minutes
 
 #define LIN_RX_PIN    6
@@ -100,9 +101,16 @@ void loop()
   // Send data to RTI Volvo Display
   rtiLoop();
   
+  // Check if RPI is alive
+  if (since(lastSerialAt) > RPI_SERIAL_TIMEOUT) {
+    RPI_STATUS = RPI_OFF;
+  } else {
+    RPI_STATUS = RPI_ON;
+  }
+
   // Check if we need to sleep
   if (since(lastSWMFrameAt) > RPI_TIMEOUT) {        
-    powerOffPi();    
+    powerOffPi();
   } else {
     powerOnPi(); 
   }
@@ -188,9 +196,15 @@ void handleButton()
   switch (button) {
     case BUTTON_ENTER:
       Serial.println("EVENT_KEY_ENTER");
+      if (RPI_STATUS == RPI_OFF && RTI_ON = false) {
+        RTI_ON = true;
+      }
       break;
     case BUTTON_BACK:
       Serial.println("EVENT_KEY_BACK");
+      if (RPI_STATUS == RPI_OFF && RTI_ON = true) {
+        RTI_ON = false;
+      }
       break;
   }
 }
@@ -205,9 +219,7 @@ void serialLoop()
 
     parseSerialCommand(input);
 
-    lastSerialAt = currentMillis;
-
-    RPI_STATUS = RPI_ON;
+    lastSerialAt = currentMillis;    
   }
 }
 
@@ -271,21 +283,12 @@ void rtiWrite(char byte)
 void powerOffPi()
 {  
   if (RPI_STATUS == RPI_OFF) {
-    RTI_ON = false;
     return;
   }
 
   if (RPI_STATUS == RPI_ON) {
     Serial.println("EVENT_RPI_SHUTDOWN");    
     piShutdownAt = currentMillis;
-    RPI_STATUS = RPI_SHUTTING_DOWN;
-  }
-
-  if (RPI_STATUS == RPI_SHUTTING_DOWN) {    
-    if (since(piShutdownAt) > 30000) {
-      Serial.println("EVENT_RPI_OFF");
-      RPI_STATUS = RPI_OFF;      
-    }
   }
 }
 
@@ -295,16 +298,9 @@ void powerOnPi()
     return;
   }
 
-  if (RPI_STATUS == RPI_SHUTTING_DOWN) {
-    // Continue shutdown sequence
-    powerOffPi(); 
-    return;
-  }
-
   if (RPI_STATUS == RPI_OFF) {
     clickPiRelay();
-    Serial.println("EVENT_RPI_ON");
-    RPI_STATUS = RPI_ON;
+    Serial.println("EVENT_RPI_ON");    
   }
 }
 
