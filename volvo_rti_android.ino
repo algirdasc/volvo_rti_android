@@ -1,12 +1,13 @@
 #include <SoftwareSerial.h>
+#include <EEPROM.h>
 #include "src/SendOnlySoftwareSerial.h"
 #include "src/lin_frame.h"
 
 #define SERIAL_BAUD   115200
 
-#define RPI_SERIAL_TIMEOUT 10000 // 10 seconds
-#define LONG_PRESS_BUTTON_TIMEOUT 3000 // 3 seconds
-#define SWM_TIMEOUT   600000 // 10 minutes
+#define VERY_LONG_PRESS_BUTTON_TIMEOUT  10000 // 10 seconds
+#define LONG_PRESS_BUTTON_TIMEOUT       3000 // 3 seconds
+#define SWM_TIMEOUT                     300000 // 5 minutes
 
 #define LIN_RX_PIN    12
 #define LIN_TX_PIN    9
@@ -55,25 +56,27 @@ LinFrame linFrame;
 #define JOYSTICK_RIGHT  0x8
 #define BUTTON_BACK     0x1
 #define BUTTON_ENTER    0x8
+#define BUTTON_BOTH     0x9
 #define BUTTON_NEXT     0x10
 #define BUTTON_PREV     0x2
 
-byte CURRENT_BUTTON;
+byte CURRENT_BUTTON, CURRENT_JOYSTICK;
 bool RTI_ON = false;
 int RTI_BRIGHTNESS = 10;
 enum RTI_DISPLAY_MODE_NAME { RTI_RGB, RTI_PAL, RTI_NTSC, RTI_OFF };
 const char RTI_DISPLAY_MODES[] = { 0x40, 0x45, 0x4C, 0x46 };
 const char RTI_BRIGHTNESS_LEVELS[] = { 0x20, 0x61, 0x62, 0x23, 0x64, 0x25, 0x26, 0x67, 0x68, 0x29, 0x2A, 0x2C, 0x6B, 0x6D, 0x6E, 0x2F };
-enum RPI_STATUS_NAME { RPI_ON, RPI_SHUTTING_DOWN, RPI_OFF };
-int RPI_STATUS = RPI_ON;
+bool linFramesHandled = false;
 
-unsigned long currentMillis, lastSWMFrameAt, lastRtiWriteAt, lastSerialAt, lastLinbusHandleAt, buttonPressedAt;
+unsigned long currentMillis, lastSWMFrameAt, lastRtiWriteAt, lastSerialAt, buttonPressedAt, joystickPressedAt;
 
 void setup()
 {      
   digitalWrite(LED_BUILTIN, HIGH);
   
   Serial.begin(SERIAL_BAUD);
+
+  RTI_ON = EEPROM.read(0);
 
   RTI.begin(2400);  
   LIN.begin(9600);
@@ -95,7 +98,6 @@ void setup()
 }
 
 bool IsSWMTimedOut, LastIsSWMTimedOut = false;
-bool IsRPISerialTimedOut, LastIsRPISerialTimedOut = false;
 
 void loop()
 { 
@@ -110,8 +112,7 @@ void loop()
   // Send data to RTI Volvo Display
   rtiLoop();
     
-  IsSWMTimedOut = since(lastSWMFrameAt) > SWM_TIMEOUT;
-  IsRPISerialTimedOut = since(lastSerialAt) > RPI_SERIAL_TIMEOUT;
+  IsSWMTimedOut = since(lastSWMFrameAt) > SWM_TIMEOUT;  
 
   if (LastIsSWMTimedOut != IsSWMTimedOut) {
     if (IsSWMTimedOut == true) {
@@ -123,16 +124,7 @@ void loop()
     }
   }
 
-  if (LastIsRPISerialTimedOut != IsRPISerialTimedOut) {
-    if (IsRPISerialTimedOut == true) {
-      RPI_STATUS = RPI_OFF;
-    } else {
-      RPI_STATUS = RPI_ON;
-    }
-  }
-
   LastIsSWMTimedOut = IsSWMTimedOut;
-  LastIsRPISerialTimedOut = IsRPISerialTimedOut;
 }
 
 void linbusLoop()
@@ -160,7 +152,7 @@ void linbusLoop()
 void parseLinFrame()
 {
   if (linFrame.get_byte(0) != SWM_ID) {
-    debugln("LIN frame is not SWM_ID");
+    // debugln("LIN frame is not SWM_ID");
     return;
   }
 
@@ -168,22 +160,29 @@ void parseLinFrame()
 
   // skip zero values 20 0 0 0 0 FF
   if (linFrame.get_byte(5) == 0xff) {
-    debugln("LIN frame zero value");
+    // debugln("LIN frame zero value");
+    if (CURRENT_JOYSTICK != 0x00) {
+      handleJoystickRelease();
+    }
+
+    if (CURRENT_BUTTON != 0x00) {
+      handleButtonRelease(false);
+    }
+    
+    CURRENT_BUTTON = 0x00;
+    CURRENT_JOYSTICK = 0x00;
+    linFramesHandled = false;
     return;    
   }
 
   if (!linFrame.isValid()) {
-    debugln("LIN frame is invalid");
+    // debugln("LIN frame is invalid");
     return;
   }    
 
   // Prevent flood
-  if (since(lastLinbusHandleAt) > 250) {    
-    handleJoystick();
-    handleButton();
-
-    lastLinbusHandleAt = currentMillis;
-  }  
+  handleJoystickPress();
+  handleButtonPress();
 
   for (int i = 0; i < linFrame.num_bytes(); i++) {
     if (DEBUG) {  
@@ -195,7 +194,7 @@ void parseLinFrame()
   debugln("");
 }
 
-void handleJoystick() 
+void handleJoystickPress() 
 {
   byte joystick = linFrame.get_byte(1);
 
@@ -203,9 +202,22 @@ void handleJoystick()
     return;
   }
 
-  debug("Handling joystick: ");
+  if (CURRENT_JOYSTICK == 0 && CURRENT_JOYSTICK != joystick) {
+    debugln("Started joystick press");
+    CURRENT_JOYSTICK = joystick;
+    joystickPressedAt = currentMillis;
+  }
+}
 
-  switch (joystick) {
+void handleJoystickRelease() 
+{
+  if (linFramesHandled) {
+    return;
+  }
+  
+  debugln("Started joystick release");
+
+  switch (CURRENT_JOYSTICK) {
     case JOYSTICK_UP:
       Serial.println("EVENT_KEY_UP");
       break;
@@ -220,47 +232,65 @@ void handleJoystick()
       break;
   }
 
+  linFramesHandled = true;
+
   debugln("Joystick handled");
 }
 
-void handleButton()
+void handleButtonPress()
 {
   byte button = linFrame.get_byte(2);
-  bool longPressButton = false;
 
   if (!button) {
     return;
   }
 
-  if (CURRENT_BUTTON == button) {
-    if (since(buttonPressedAt) > LONG_PRESS_BUTTON_TIMEOUT) {
-      debugln("Long press button: true");
-      longPressButton = true;
-    } else {
-      debugln("Waiting for long press timeout");
-      return;
-    }
+  if (CURRENT_BUTTON == 0x00 && CURRENT_BUTTON != button) {
+    debugln("Started button press");
+    CURRENT_BUTTON = button;
+    buttonPressedAt = currentMillis;
   }
 
-  buttonPressedAt = currentMillis;
-  CURRENT_BUTTON = button;
+  bool longPressButton = since(buttonPressedAt) >= LONG_PRESS_BUTTON_TIMEOUT && since(buttonPressedAt) < VERY_LONG_PRESS_BUTTON_TIMEOUT;
 
-  debug("Handling button: ");
+  if (longPressButton) {
+    handleButtonRelease(longPressButton);
+  }
+}
 
-  switch (button) {
+void handleButtonRelease(bool longPressButton)
+{
+  if (linFramesHandled) {
+    return;
+  }
+  
+  debugln("Started button release");
+     
+  switch (CURRENT_BUTTON) {
+    case BUTTON_BOTH:
+      powerOnPi();
+      Serial.println("EVENT_REBOOT");
     case BUTTON_ENTER:
-      Serial.println("EVENT_KEY_ENTER" + longPressButton == true ? "_LONG" : "");
-      if (RPI_STATUS == RPI_OFF && RTI_ON == false && longPressButton == true) {
-        RTI_ON = true;
+      if (longPressButton) {
+        set_rti(!RTI_ON);
+      } else {
+        if (!RTI_ON) {
+          set_rti(true);
+        } else {
+          Serial.println("EVENT_KEY_ENTER");
+        }
       }
       break;
     case BUTTON_BACK:
-      Serial.println("EVENT_KEY_BACK" + longPressButton == true ? "_LONG" : "");
-      if (RPI_STATUS == RPI_OFF && RTI_ON == true && longPressButton == true) {
-        RTI_ON = false;
+      if (longPressButton) {
+        Serial.println("EVENT_KEY_BACK_LONG");
+      } else {
+        Serial.println("EVENT_KEY_BACK");
       }
       break;
   }
+
+  linFramesHandled = true;
 
   debugln("Button handled");
 }
@@ -286,16 +316,17 @@ void parseSerialCommand(char* input)
   
   if (!argument) {    
     if (strcmp(input, "DISPLAY_UP") == 0) {
-      RTI_ON = true;
+      set_rti(true);
       // Serial.println("CMD_DISPLAY_UP");
     } else if (strcmp(input, "DISPLAY_DOWN") == 0) {
-      RTI_ON = false;
+      set_rti(false);
       // Serial.println("CMD_DISPLAY_DOWN");
     } else if (strcmp(input, "RPI_ON") == 0) {
       clickPiRelay();
       // Serial.println("CMD_RPI_ON");
     }
   } else {
+    // Not used with AT065TN14 display
     if (strcmp(command, "DISPLAY_BRIGHTNESS") == 0) {
       int brightness = atoi(argument);
       if (brightness > -1 && brightness < 16) {        
@@ -333,30 +364,17 @@ void rtiLoop()
 void rtiWrite(char byte)
 {
   RTI.write(byte);
-  delay(RTI_INTERVAL);
 }
 
 void powerOffPi()
 {  
-  if (RPI_STATUS == RPI_OFF) {
-    return;
-  }
-
-  if (RPI_STATUS == RPI_ON) {
-    Serial.println("EVENT_RPI_SHUTDOWN");    
-  }
+  Serial.println("EVENT_RPI_SHUTDOWN");    
 }
 
 void powerOnPi()
 { 
-  if (RPI_STATUS == RPI_ON) {
-    return;
-  }
-
-  if (RPI_STATUS == RPI_OFF) {
-    clickPiRelay();
-    Serial.println("EVENT_RPI_ON");    
-  }
+  Serial.println("EVENT_RPI_ON");
+  clickPiRelay();  
 }
 
 void clickPiRelay()
@@ -368,4 +386,12 @@ void clickPiRelay()
 
 long since(long timestamp) {
   return currentMillis - timestamp;
+}
+
+void set_rti(bool value)
+{ 
+  if (RTI_ON != value) {
+    EEPROM.write(0, value ? 1 : 0);
+    RTI_ON = value;
+  }
 }
