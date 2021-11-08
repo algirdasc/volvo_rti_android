@@ -21,8 +21,9 @@ ANDROID_ACTIVE = False
 
 def main() -> None:
 
-    _thread.start_new_thread(usb_monitor, ())
     _thread.start_new_thread(serial_monitor, ())
+    time.sleep(5)
+    _thread.start_new_thread(usb_monitor, ())
 
     while True:
         time.sleep(1)
