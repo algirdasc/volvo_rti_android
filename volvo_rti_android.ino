@@ -269,7 +269,7 @@ void handleButtonRelease(bool longPressButton)
   switch (CURRENT_BUTTON) {
     case BUTTON_BOTH:
       powerOnPi();
-      Serial.println("EVENT_REBOOT");
+      Serial.println("EVENT_RPI_REBOOT");
     case BUTTON_ENTER:
       if (longPressButton) {
         set_rti(!RTI_ON);
